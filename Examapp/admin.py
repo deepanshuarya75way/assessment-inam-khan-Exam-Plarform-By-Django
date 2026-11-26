@@ -118,13 +118,13 @@ class StudentInlineForm(forms.ModelForm):
         # Filter the user dropdown selection to only show users with a student role
         self.fields['user'].queryset = User.objects.filter(userrole__role='student')
         
-        # 🌟 CRITICAL FIX: Clear the uniqueness validator constraints on this form
+      
         # This prevents Django from throwing "User role with this User already exists"
         if 'user' in self.fields:
             self.fields['user'].validators = []
 
     def validate_unique(self):
-        # 🌟 CRITICAL FIX: Bypass model-level OneToOne uniqueness check during form cleaning
+       
         pass
 
 
