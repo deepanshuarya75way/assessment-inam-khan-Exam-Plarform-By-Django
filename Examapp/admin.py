@@ -112,9 +112,39 @@ class AnswerAdmin(admin.ModelAdmin):
     list_display = ('student_exam', 'question', 'selected_choice', 'is_correct', 'marks_obtained')
     list_filter = ('is_correct',)
 
+
+
+# ── Inline Configuration to show Students inside an Organization ──────────────
+
+class StudentInline(admin.TabularInline):
+    model = UserRole
+    # Only show students belonging to this organization
+    verbose_name = "Enrolled Student"
+    verbose_name_plural = "Enrolled Students"
+    extra = 0  # Prevents Django from adding empty blank rows automatically
+    
+    # Restrict fields shown in the inline table
+    fields = ('user', 'course', 'section')
+    readonly_fields = ('user', 'course', 'section')  # Makes it a clean look-only list
+
+    # Filter out teachers so only students show up in this list
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(role='student')
+
+
+# ── Updated Organizations Admin ───────────────────────────────────────────────
+
 @admin.register(organizations)
 class organizationsAdmin(admin.ModelAdmin):
-    list_display=['org_name']
+    list_display = ['id', 'org_name']
+    search_fields = ('org_name',)
+    
+    # 🌟 NEW: This embeds the student list directly into the Organization details page
+    inlines = [StudentInline]
+
+
+
+
 
 admin.site.register(Choice)
 
