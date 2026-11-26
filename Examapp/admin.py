@@ -44,13 +44,8 @@ class TeacherAdmin(admin.ModelAdmin):
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip() or '—'
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        UserRole.objects.get_or_create(user=obj, defaults={'role': 'teacher'})
-
     def get_fields(self, request, obj=None):
         if obj is None:
-            # Creating a new teacher
             return ('username', 'first_name', 'last_name', 'email', 'password', 'is_active')
         return ('username', 'first_name', 'last_name', 'email', 'is_active', 'date_joined', 'last_login')
 
@@ -61,15 +56,11 @@ class TeacherAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if not change:
-            # New teacher — hash the password
             raw_password = form.data.get('password')
             if raw_password:
                 obj.set_password(raw_password)
         super().save_model(request, obj, form, change)
         UserRole.objects.get_or_create(user=obj, defaults={'role': 'teacher'})
-
-
-
 
 
 class ChoiceInline(admin.TabularInline):
@@ -83,8 +74,7 @@ class QuestionInline(admin.TabularInline):
     show_change_link = True
 
 
-
-admin.register(Exam)
+@admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
     list_display = ('title', 'teacher', 'duration_minutes', 'total_marks', 'passing_marks', 'is_published', 'start_time', 'end_time')
     list_filter = ('is_published', 'teacher')
@@ -113,37 +103,85 @@ class AnswerAdmin(admin.ModelAdmin):
     list_filter = ('is_correct',)
 
 
-
 # ── Inline Configuration to show Students inside an Organization ──────────────
+
+from django import forms
+from django.forms.models import BaseInlineFormSet
+
+class StudentInlineForm(forms.ModelForm):
+    class Meta:
+        model = UserRole
+        fields = ('user', 'course', 'section')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter the user dropdown selection to only show users with a student role
+        self.fields['user'].queryset = User.objects.filter(userrole__role='student')
+        
+        # 🌟 CRITICAL FIX: Clear the uniqueness validator constraints on this form
+        # This prevents Django from throwing "User role with this User already exists"
+        if 'user' in self.fields:
+            self.fields['user'].validators = []
+
+    def validate_unique(self):
+        # 🌟 CRITICAL FIX: Bypass model-level OneToOne uniqueness check during form cleaning
+        pass
+
+
+class StudentInlineFormSet(BaseInlineFormSet):
+    def save_new(self, form, commit=True):
+        # Handles user rows that are added as fresh values
+        user = form.cleaned_data.get('user')
+        course = form.cleaned_data.get('course', '')
+        section = form.cleaned_data.get('section', '')
+        
+        user_role, created = UserRole.objects.get_or_create(
+            user=user,
+            defaults={
+                'role': 'student',
+                'organization': self.instance,
+                'course': course,
+                'section': section
+            }
+        )
+        
+        if not created:
+            user_role.role = 'student'
+            user_role.organization = self.instance
+            user_role.course = course
+            user_role.section = section
+            if commit:
+                user_role.save()
+                
+        return user_role
+
+    def save_existing(self, form, instance, commit=True):
+        # 🌟 Handles updates to students who are already displayed on this list
+        instance.organization = self.instance
+        instance.role = 'student'
+        if commit:
+            instance.save()
+        return instance
+
 
 class StudentInline(admin.TabularInline):
     model = UserRole
-    # Only show students belonging to this organization
+    form = StudentInlineForm
+    formset = StudentInlineFormSet
     verbose_name = "Enrolled Student"
     verbose_name_plural = "Enrolled Students"
-    extra = 0  # Prevents Django from adding empty blank rows automatically
-    
-    # Restrict fields shown in the inline table
+    extra = 1
     fields = ('user', 'course', 'section')
-    readonly_fields = ('user', 'course', 'section')  # Makes it a clean look-only list
 
-    # Filter out teachers so only students show up in this list
     def get_queryset(self, request):
         return super().get_queryset(request).filter(role='student')
 
-
-# ── Updated Organizations Admin ───────────────────────────────────────────────
 
 @admin.register(organizations)
 class organizationsAdmin(admin.ModelAdmin):
     list_display = ['id', 'org_name']
     search_fields = ('org_name',)
-    
-    # 🌟 NEW: This embeds the student list directly into the Organization details page
     inlines = [StudentInline]
-
-
-
 
 
 admin.site.register(Choice)
@@ -151,8 +189,6 @@ admin.site.register(Choice)
 # Hide the default User section — Students and Teachers have their own sections
 admin.site.unregister(User)
 
-# UserRole is managed automatically; hide from admin to avoid confusion
-# (kept only for superuser debugging if needed)
 
 @admin.register(PasswordResetOTP)
 class PasswordResetOTPAdmin(admin.ModelAdmin):
@@ -160,4 +196,3 @@ class PasswordResetOTPAdmin(admin.ModelAdmin):
     list_filter = ('is_used',)
     search_fields = ('user__username',)
     readonly_fields = ('otp', 'created_at')
-
