@@ -54,6 +54,18 @@
                 </select>
             </div>
         </div>
+
+                <!-- 🌟 NEW: Dynamic Organization Selection Dropdown -->
+        <div class="form-group">
+            <label for="organization">Organization / Institution</label>
+            <select id="organization" name="organization" required style="width:100%; padding:0.6rem; border:1px solid #bdc3c7; border-radius:4px; background:#fff;">
+                <option value="" disabled selected>— Select your Organization —</option>
+                {% for org in organizations %}
+                    <option value="{{ org.id }}">{{ org.org_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <div class="form-group">
             <label for="email">Email Address</label>
             <input type="email" id="email" name="email" value="{{ email }}" required>

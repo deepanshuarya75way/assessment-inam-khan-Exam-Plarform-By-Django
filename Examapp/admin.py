@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.models import User
-from .models import UserRole, Exam, Question, Choice, StudentExam, Answer, PasswordResetOTP, StudentProxy, TeacherProxy
+from .models import UserRole, Exam, Question, Choice, StudentExam, Answer, PasswordResetOTP, StudentProxy, TeacherProxy, organizations
 
 
 # ── Student Admin ─────────────────────────────────────────────────────────────
@@ -84,8 +84,7 @@ class QuestionInline(admin.TabularInline):
 
 
 
-
-@admin.register(Exam)
+admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
     list_display = ('title', 'teacher', 'duration_minutes', 'total_marks', 'passing_marks', 'is_published', 'start_time', 'end_time')
     list_filter = ('is_published', 'teacher')
@@ -113,6 +112,9 @@ class AnswerAdmin(admin.ModelAdmin):
     list_display = ('student_exam', 'question', 'selected_choice', 'is_correct', 'marks_obtained')
     list_filter = ('is_correct',)
 
+@admin.register(organizations)
+class organizationsAdmin(admin.ModelAdmin):
+    list_display=['org_name']
 
 admin.site.register(Choice)
 

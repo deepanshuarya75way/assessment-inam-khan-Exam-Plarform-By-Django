@@ -2,6 +2,11 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+class organizations(models.Model):
+    org_name=models.CharField(max_length=30)
+
+    def __str__(self):
+        return f"{self.org_name}"
 
 class UserRole(models.Model):
     ROLE_CHOICES = (
@@ -12,6 +17,8 @@ class UserRole(models.Model):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     course = models.CharField(max_length=100, blank=True, default='')
     section = models.CharField(max_length=50, blank=True, default='')
+    organization = models.ForeignKey(organizations, on_delete=models.CASCADE, null=True, blank=True)
+    
 
     def __str__(self):
         return f"{self.user.username} - {self.get_role_display()}"
@@ -29,7 +36,7 @@ class Exam(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)
-
+   
     def __str__(self):
         return self.title
 
@@ -149,7 +156,7 @@ class StudentProxy(User):
         verbose_name = 'Student'
         verbose_name_plural = 'Students'
         app_label = 'Examapp'
-
+        
 
 class TeacherProxy(User):
     class Meta:
@@ -157,7 +164,7 @@ class TeacherProxy(User):
         verbose_name = 'Teacher'
         verbose_name_plural = 'Teachers'
         app_label = 'Examapp'
-
+       
 
 class PasswordResetOTP(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='otp_codes')
@@ -170,3 +177,5 @@ class PasswordResetOTP(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - OTP({self.otp})"
+
+

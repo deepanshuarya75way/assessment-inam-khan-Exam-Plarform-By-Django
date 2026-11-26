@@ -7,6 +7,10 @@ from django.views.decorators.http import require_POST
 from django.urls import reverse
 from django.utils import timezone
 from django.conf import settings as django_settings
+from django.shortcuts import render, redirect
+from django.contrib.auth.models import User
+from .models import UserRole, organizations
+
 import json
 import os
 import subprocess
@@ -136,64 +140,79 @@ def home(request):
     return render(request, 'auth/home.html')
 
 
+
 def signup(request):
+    # Fetch all organizations for the dropdown select menu
+    all_orgs = organizations.objects.all()
+
     if request.method == 'POST':
+        # Retrieve form data
         first_name = request.POST.get('first_name', '').strip()
         last_name = request.POST.get('last_name', '').strip()
-        reg_number = request.POST.get('reg_number', '').strip()
+        reg_number = request.POST.get('reg_number', '').strip()  # Used as Username
+        course = request.POST.get('course', '')
+        section = request.POST.get('section', '')
         email = request.POST.get('email', '').strip()
-        password = request.POST.get('password')
-        confirm_password = request.POST.get('confirm_password')
-        role = request.POST.get('role')
-        course = request.POST.get('course', '').strip()
-        section = request.POST.get('section', '').strip()
+        password = request.POST.get('password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+        org_id = request.POST.get('organization')
 
-        def form_error(msg):
-            return render(request, 'auth/signup.html', {
-                'error': msg,
-                'first_name': first_name,
-                'last_name': last_name,
-                'reg_number': reg_number,
-                'email': email,
-                'course': course,
-                'section': section,
-            })
+        # Context to retain field values if validation fails
+        context = {
+            'organizations': all_orgs,
+            'first_name': first_name,
+            'last_name': last_name,
+            'reg_number': reg_number,
+            'course': course,
+            'section': section,
+            'email': email,
+        }
 
-        # Only admin can create teacher accounts
-        if role == 'teacher':
-            return form_error('Teacher accounts can only be created by an administrator.')
-
-        if not first_name or not last_name:
-            return form_error('First name and last name are required.')
-
-        if not reg_number:
-            return form_error('Registration number is required.')
-
-        if not course:
-            return form_error('Please select your course.')
-
-        if not section:
-            return form_error('Please enter your section.')
-
+        # 1. Validation Checks
         if password != confirm_password:
-            return form_error('Passwords do not match.')
+            context['error'] = "Passwords do not match."
+            return render(request, 'auth/signup.html', context)
 
-        # Use registration number as the username (unique)
         if User.objects.filter(username=reg_number).exists():
-            return form_error('An account with this registration number already exists.')
+            context['error'] = f"An account with Registration Number '{reg_number}' already exists."
+            return render(request, 'auth/signup.html', context)
 
+        if User.objects.filter(email=email).exists():
+            context['error'] = "An account with this email address already exists."
+            return render(request, 'auth/signup.html', context)
+
+        if not org_id:
+            context['error'] = "Please select a valid organization."
+            return render(request, 'auth/signup.html', context)
+
+        # 2. Get Organization Entity
+        selected_org = organizations.objects.filter(id=org_id).first()
+        if not selected_org:
+            context['error'] = "Selected organization does not exist."
+            return render(request, 'auth/signup.html', context)
+
+        # 3. Create core User credentials profile
         user = User.objects.create_user(
             username=reg_number,
             email=email,
             password=password,
             first_name=first_name,
-            last_name=last_name,
+            last_name=last_name
         )
-        UserRole.objects.create(user=user, role=role, course=course, section=section)
-        login(request, user)
-        return redirect('dashboard')
 
-    return render(request, 'auth/signup.html')
+        # 4. Save metadata settings to UserRole model bound to the Organization
+        UserRole.objects.create(
+            user=user,
+            role='student',
+            organization=selected_org,
+            course=course,
+            section=section
+        )
+
+        return redirect('login')
+
+    # GET Request logic
+    return render(request, 'auth/signup.html', {'organizations': all_orgs})
 
 
 def forgot_password(request):
